@@ -11,10 +11,12 @@ function assertNotAnEmptyAddress(address) {
 
 contract('MechaMonkeysCollection', (accounts) => {
     before(async () => {
-        this.splitter = await MechaMonkeysCollection.deployed();
+        //this.collection = await MechaMonkeysCollection.deployed();
     });
 
     it('always fails', async () => {
+        const collectionOwner = await this.collection.owner();
+        console.log(collectionOwner);
         assert.isTrue(false);
     });
 });
