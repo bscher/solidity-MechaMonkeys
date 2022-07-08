@@ -12,7 +12,7 @@ contract MechaMonkeysCollection is ERC721 {
 
     // Address of the creator for paying out transaction fees.
     // NOTE: A contract can be referenced to split transactions, or do further logic.
-    address private _creator;
+    address public creator;
 
     // The three phases during the release. Each phase modifies `_baseURI` to return
     //  the next phase of the release. Only the `_creator` can modify the release phase
@@ -32,7 +32,7 @@ contract MechaMonkeysCollection is ERC721 {
 
     constructor(address creator_) ERC721("Mecha Monkeys", "MECHA") {
         owner = _msgSender();
-        _creator = creator_;
+        creator = creator_;
 
         // Initial release phase is `ReleasePhase.WAITING`
         releasePhase = ReleasePhase.WAITING;

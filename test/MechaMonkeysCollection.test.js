@@ -20,13 +20,15 @@ async function assertPromiseFails(promise) {
 
 contract('MechaMonkeysCollection', (accounts) => {
     before(async () => {
-        this.collection = await MechaMonkeysCollection.deployed();
+        this.collection = await MechaMonkeysCollection.new(accounts[1]);
         console.log(Object.keys(MechaMonkeysCollection));
     });
 
     it('has ERC721 info', async () => {
         const collectionOwner = await this.collection.owner();
         console.log(collectionOwner);
+        const creator = await this.collection.creator();
+        console.log(creator);
 
         const collectionName = await this.collection.name();
         assert.equal(collectionName, "Mecha Monkeys");
