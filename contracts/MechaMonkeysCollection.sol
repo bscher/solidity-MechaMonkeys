@@ -16,14 +16,14 @@ contract MechaMonkeysCollection is ERC721, IERC2981 {
 
     // Address to send the trade commission payouts.
     // NOTE: A contract can be referenced to split transactions, or do further logic.
-    address public transactionPayoutAddress;
+    address payable public transactionPayoutAddress;
 
     // Address of the artist. This address with automatically be assigned a special token
     //  specifically for the artist.
     address public artistAddress;
 
     // Iterate from 1 to 9999 (inclusive) tokens.
-    uint256 private _nextAvailableToken = 1;
+    uint256 public nextAvailableToken = 1;
     uint256 public constant TOKEN_FIRST = 1;
     uint256 public constant TOKEN_LAST = 9999;
     // Artist's special symbolic token (not part of official collection).
@@ -48,9 +48,10 @@ contract MechaMonkeysCollection is ERC721, IERC2981 {
     // NOTE: After `ReleasePhase.COMPLETED`, `currentBaseURI` cannot be modified.
     string public currentBaseURI;
 
-    constructor(address transactionPayoutAddress_, address artistAddress_)
-        ERC721("Mecha Monkeys", "MECHA")
-    {
+    constructor(
+        address payable transactionPayoutAddress_,
+        address artistAddress_
+    ) ERC721("Mecha Monkeys", "MECHA") {
         contractOwner = _msgSender();
         transactionPayoutAddress = transactionPayoutAddress_;
         artistAddress = artistAddress_;
@@ -62,6 +63,24 @@ contract MechaMonkeysCollection is ERC721, IERC2981 {
 
         // Mint artist's special symbolic token (not part of official collection).
         _mint(artistAddress, ARTIST_SPECIAL_TOKEN);
+    }
+
+    /**
+     * NOTE: Do NOT send Ether to this contract! It will be considered a donation.
+     *       Do NOT send Tokens to this contract! They will be lost forever!
+     *       This contract does not utilize received Ether by design.
+     */
+    receive() external payable {}
+
+    /**
+     * @dev Allow withdraw by the owner or artist.
+     * NOTE: This contract should not hold any Ether except for donations.
+     */
+    function withdraw() public {
+        // Only `contractOwner` and `artistAddress` can withdraw
+        require(_msgSender() == contractOwner || _msgSender() == artistAddress);
+        // Withdraw all Ether.
+        payable(msg.sender).transfer(address(this).balance);
     }
 
     /**
@@ -82,6 +101,7 @@ contract MechaMonkeysCollection is ERC721, IERC2981 {
 
     /**
      * @dev Public function for any address to mint only one new token.
+     * NOTE: Token IDs do NOT represent rarity; each ID's token attributes will be randomized.
      */
     function mint() public {
         // Each address can only mint one token each.
@@ -91,18 +111,27 @@ contract MechaMonkeysCollection is ERC721, IERC2981 {
         );
         // Total minting is limited from Ids of `TOKEN_FIRST` to a max of `TOKEN_LAST`.
         require(
-            _nextAvailableToken <= TOKEN_LAST,
+            nextAvailableToken <= TOKEN_LAST,
             "MM: All tokens have been minted."
         );
 
         // Mint the next available token to the sender.
-        _safeMint(_msgSender(), _nextAvailableToken);
+        _safeMint(_msgSender(), nextAvailableToken);
 
         // Advance token iterator
-        _nextAvailableToken = _nextAvailableToken + 1;
+        nextAvailableToken += 1;
     }
 
-    function getAmountLeftToMint() public view returns (uint256) {}
+    /**
+     * @dev Returns the amount of tokens left to be minted.
+     */
+    function getAmountLeftToMint() public view returns (uint256) {
+        if (nextAvailableToken > TOKEN_LAST) {
+            return 0;
+        } else {
+            return (TOKEN_LAST + 1) - nextAvailableToken;
+        }
+    }
 
     /**
      * @dev Advance `releasePhase` to the next pre-defined ReleasePhase.
@@ -132,7 +161,8 @@ contract MechaMonkeysCollection is ERC721, IERC2981 {
     }
 
     /**
-     * @dev Base URI for computing {tokenURI}. Can change based on `releasePhase`/`currentBaseURI`.
+     * @dev Base URI for computing {tokenURI}. Can change based on `releasePhase`/`currentBaseURI`,
+     *       but only until `releasePhase` reaches `COMPLETED`, which then the baseURI is finalized.
      */
     function _baseURI()
         internal
@@ -148,17 +178,17 @@ contract MechaMonkeysCollection is ERC721, IERC2981 {
      * @dev Disallow burning of tokens.
      */
     function _beforeTokenTransfer(
-        address from,
-        address to,
-        uint256 tokenId
-    ) internal virtual override {
+        address from_,
+        address to_,
+        uint256 tokenId_
+    ) internal view virtual override {
         // Disallow burning
-        require(to != address(0), "MM: Token cannot be burned.");
+        require(to_ != address(0), "MM: Token cannot be burned.");
 
         // Only the artist can mint the artist's special token upon contract creation.
         if (
             _msgSender() == contractOwner &&
-            tokenId == ARTIST_SPECIAL_TOKEN &&
+            tokenId_ == ARTIST_SPECIAL_TOKEN &&
             releasePhase == ReleasePhase.WAITING
         ) {
             return; //OK
@@ -172,18 +202,26 @@ contract MechaMonkeysCollection is ERC721, IERC2981 {
     }
 
     /**
+     * @dev Disallow token burning.
+     * NOTE: This function is never called, but disabled just in case and to be verbose.
+     */
+    function _burn(uint256 tokenId_) internal virtual override {
+        require(false, "MM: Token cannot be burned.");
+    }
+
+    /**
      * @dev Returns how much royalty is owed and to whom, based on a sale price that may be denominated in any unit of
      * exchange. The royalty amount is denominated and should be paid in that same unit of exchange.
      * NOTE: All `tokenId`s have the same royalty ratio.
      */
-    function royaltyInfo(uint256 tokenId, uint256 salePrice)
+    function royaltyInfo(uint256 tokenId_, uint256 salePrice_)
         external
         view
         override(IERC2981)
         returns (address, uint256)
     {
         address receiver = transactionPayoutAddress;
-        uint256 royaltyAmount = salePrice / TRANSACTION_FEE_DENOMINATOR;
+        uint256 royaltyAmount = salePrice_ / TRANSACTION_FEE_DENOMINATOR;
 
         return (receiver, royaltyAmount);
     }

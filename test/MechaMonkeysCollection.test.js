@@ -92,8 +92,6 @@ contract('MechaMonkeysCollection', (accounts) => {
         const waitingPhase = (await this.collection.releasePhase()).toString();
         assert.equal(waitingPhase, MechaMonkeysCollection.ReleasePhase.WAITING.toString());
         assert.equal(waitingPhase_uri, (await this.collection.currentBaseURI()));
-        // Verify artist was minted the special token
-        //(await this.collection.ownerOf())
 
         /// Mystery phase ///
         const mysteryPhase_uri = "https://mystery/";
