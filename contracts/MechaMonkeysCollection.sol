@@ -77,10 +77,10 @@ contract MechaMonkeysCollection is ERC721, IERC2981 {
      * NOTE: This contract should not hold any Ether except for donations.
      */
     function withdraw() public {
-        // Only `contractOwner` and `artistAddress` can withdraw
+        // Only `contractOwner` and `artistAddress` can trigger a withdrawal.
         require(_msgSender() == contractOwner || _msgSender() == artistAddress);
         // Withdraw all Ether.
-        payable(msg.sender).transfer(address(this).balance);
+        transactionPayoutAddress.transfer(address(this).balance);
     }
 
     /**
@@ -197,7 +197,7 @@ contract MechaMonkeysCollection is ERC721, IERC2981 {
         // Can only transfer tokens after minting has started.
         require(
             releasePhase != ReleasePhase.WAITING,
-            "MM: Transers and minting cannot occur yet."
+            "MM: Transfers and minting cannot occur yet."
         );
     }
 

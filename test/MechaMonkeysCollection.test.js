@@ -117,4 +117,30 @@ contract('MechaMonkeysCollection', (accounts) => {
         // Should not be able to progress to next phase
         await assertPromiseFails(this.collection.nextReleasePhase("https://should-fail/"));
     });
+
+    it('can mint a token', async () => {
+        const currentPhase = (await this.collection.releasePhase()).toString();
+        assert.equal(currentPhase, MechaMonkeysCollection.ReleasePhase.COMPLETED);
+
+        let initialAmountLeftToMint = (await this.collection.getAmountLeftToMint()).toNumber();
+        assert.equal(9999, initialAmountLeftToMint);
+
+        await this.collection.mint();
+
+        let afterAmountLeftToMint = (await this.collection.getAmountLeftToMint()).toNumber();
+        assert.equal(9998, afterAmountLeftToMint);
+        assert.equal(1, (await this.collection.balanceOf(ACCOUNT_OWNER)).toNumber());
+
+        let ownerOfIdOne = await this.collection.ownerOf(1);
+        console.log(ownerOfIdOne);
+
+        console.log(await this.collection.tokenURI(1));
+    });
+
+    it('same address cannot mint twice', async () => {
+        const currentPhase = (await this.collection.releasePhase()).toString();
+        assert.equal(currentPhase, MechaMonkeysCollection.ReleasePhase.COMPLETED);
+
+        await assertPromiseFails(this.collection.mint());
+    });
 });
