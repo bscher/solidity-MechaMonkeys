@@ -12,39 +12,78 @@ function assertNotAnEmptyAddress(address) {
 async function assertPromiseFails(promise) {
     try {
         await promise;
-        assert.fail("Expected promise to throw an error!");
     } catch (error) {
-        // OK
+        return; //OK
     }
+    assert.fail("Expected promise to throw an error!");
 }
 
 contract('MechaMonkeysCollection', (accounts) => {
+
+    const ACCOUNT_OWNER = accounts[0];
+    const ACCOUNT_PAYOUT = accounts[1];
+    const ACCOUNT_ARTIST = accounts[2];
+
+    const FIRST_TOKEN = 1;
+    const LAST_TOKEN = 9999;
+    const ARTIST_TOKEN = 10000;
+
+    const PAYOUT_DENOMINATOR = 18;
+
     before(async () => {
-        this.collection = await MechaMonkeysCollection.new(accounts[1]);
+        this.collection = await MechaMonkeysCollection.new(ACCOUNT_PAYOUT, ACCOUNT_ARTIST);
         console.log(Object.keys(MechaMonkeysCollection));
     });
 
-    it('has ERC721 info', async () => {
+    it('has ERC721 and IERC2981 info', async () => {
+
+        /// ERC721 ///
+
         const contractOwner = await this.collection.contractOwner();
-        console.log(contractOwner);
+        console.log("contractOwner: " + contractOwner);
         assertNotAnEmptyAddress(contractOwner);
+        assert.equal(ACCOUNT_OWNER, contractOwner);
 
         const transactionPayoutAddress = await this.collection.transactionPayoutAddress();
-        console.log(transactionPayoutAddress);
+        console.log("transactionPayoutAddress: " + transactionPayoutAddress);
         assertNotAnEmptyAddress(transactionPayoutAddress);
+        assert.equal(ACCOUNT_PAYOUT, transactionPayoutAddress);
 
         const artistAddress = await this.collection.artistAddress();
-        console.log(artistAddress);
+        console.log("artistAddress: " + artistAddress);
         assertNotAnEmptyAddress(artistAddress);
+        assert.equal(ACCOUNT_ARTIST, artistAddress);
 
-        assert.equal(1, await this.collection.TOKEN_LAST());
-        assert.equal(9999, await this.collection.TOKEN_FIRST());
-        assert.equal(10000, await this.collection.ARTIST_SPECIAL_TOKEN());
+        assert.equal(FIRST_TOKEN, (await this.collection.TOKEN_FIRST()).toNumber());
+        assert.equal(LAST_TOKEN, (await this.collection.TOKEN_LAST()).toNumber());
+        assert.equal(ARTIST_TOKEN, (await this.collection.ARTIST_SPECIAL_TOKEN()).toNumber());
 
         const collectionName = await this.collection.name();
         assert.equal(collectionName, "Mecha Monkeys");
         const collectionSymbol = await this.collection.symbol();
         assert.equal(collectionSymbol, "MECHA");
+
+        /// IERC2981 ///
+
+        const transactionFeeDenominator = (await this.collection.TRANSACTION_FEE_DENOMINATOR()).toNumber();
+        assert.equal(PAYOUT_DENOMINATOR, transactionFeeDenominator);
+
+        const exampleSalePrice = 36000;
+        const royaltyInfo = await this.collection.royaltyInfo(1, exampleSalePrice);
+        const royaltyInfo_receiver = royaltyInfo[0];
+        const royaltyInfo_royaltyAmount = royaltyInfo[1].toNumber();
+
+        assert.equal(royaltyInfo_receiver, transactionPayoutAddress);
+        assert.equal(royaltyInfo_royaltyAmount, exampleSalePrice / transactionFeeDenominator);
+    });
+
+    it('cannot mint during initial `WAITING` phase', async () => {
+        assert.equal(MechaMonkeysCollection.ReleasePhase.WAITING, (await this.collection.releasePhase()).toString());
+        await assertPromiseFails(this.collection.mint());
+    });
+
+    it('has minted the artist NFT upon contract creation', async () => {
+        assert.equal(ACCOUNT_ARTIST, await this.collection.ownerOf(ARTIST_TOKEN));
     });
 
     it('can advance through release phases', async () => {
@@ -78,6 +117,6 @@ contract('MechaMonkeysCollection', (accounts) => {
         assert.equal(completedPhase_uri, (await this.collection.currentBaseURI()));
 
         // Should not be able to progress to next phase
-        await assertPromiseFails(this.collection.nextReleasePhase("should fail"));
+        await assertPromiseFails(this.collection.nextReleasePhase("https://should-fail/"));
     });
 });

@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+// NFT collection
 import "../openzeppelin-contracts/contracts/token/ERC721/ERC721.sol";
+// NFT metadata
 import "../openzeppelin-contracts/contracts/token/ERC721/extensions/IERC721Metadata.sol";
+// Marketplace standard royalties
+import "../openzeppelin-contracts/contracts/interfaces/IERC2981.sol";
 
-contract MechaMonkeysCollection is ERC721 {
+contract MechaMonkeysCollection is ERC721, IERC2981 {
     // Owner of the contract with the ability to advance the `ReleasePhase`.
     // NOTE: When the owner advances the `ReleasePhase` to `ReleasePhase.COMPLETED`,
     //        the owner will NOT HAVE ANY FURTHER ABILITIES OVER THE CONTRACT.
@@ -17,12 +21,16 @@ contract MechaMonkeysCollection is ERC721 {
     // Address of the artist. This address with automatically be assigned a special token
     //  specifically for the artist.
     address public artistAddress;
-    // Artist's special symbolic token (not part of official collection).
-    uint256 public constant ARTIST_SPECIAL_TOKEN = 10000;
 
+    // Iterate from 1 to 9999 (inclusive) tokens.
     uint256 private _nextAvailableToken = 1;
     uint256 public constant TOKEN_FIRST = 1;
     uint256 public constant TOKEN_LAST = 9999;
+    // Artist's special symbolic token (not part of official collection).
+    uint256 public constant ARTIST_SPECIAL_TOKEN = 10000;
+
+    // Fee denominator to determine the fraction of a transaction to use for payout.
+    uint256 public constant TRANSACTION_FEE_DENOMINATOR = 18; // 1/18 ~= 0.0555 ~= 5.55%
 
     // The three phases during the release. Each phase modifies `_baseURI` to return
     //  the next phase of the release. Only the `_creator` can modify the release phase
@@ -40,8 +48,8 @@ contract MechaMonkeysCollection is ERC721 {
     // NOTE: After `ReleasePhase.COMPLETED`, `currentBaseURI` cannot be modified.
     string public currentBaseURI;
 
-    constructor(address transactionPayoutAddress_, address artistAddress_) 
-        ERC721("Mecha Monkeys", "MECHA") 
+    constructor(address transactionPayoutAddress_, address artistAddress_)
+        ERC721("Mecha Monkeys", "MECHA")
     {
         contractOwner = _msgSender();
         transactionPayoutAddress = transactionPayoutAddress_;
@@ -57,20 +65,44 @@ contract MechaMonkeysCollection is ERC721 {
     }
 
     /**
+     * @dev See {IERC165-supportsInterface}.
+     * NOTE: ERC721 already accounted for in call to base.
+     */
+    function supportsInterface(bytes4 interfaceId_)
+        public
+        view
+        virtual
+        override(ERC721, IERC165)
+        returns (bool)
+    {
+        return
+            interfaceId_ == type(IERC2981).interfaceId ||
+            super.supportsInterface(interfaceId_);
+    }
+
+    /**
      * @dev Public function for any address to mint only one new token.
      */
     function mint() public {
         // Each address can only mint one token each.
-        require(balanceOf(_msgSender()) == 0, "MM: Each address can only mint one token each.");
+        require(
+            balanceOf(_msgSender()) == 0,
+            "MM: Each address can only mint one token each."
+        );
         // Total minting is limited from Ids of `TOKEN_FIRST` to a max of `TOKEN_LAST`.
-        require(_nextAvailableToken <= TOKEN_LAST, "MM: All tokens have been minted.");
+        require(
+            _nextAvailableToken <= TOKEN_LAST,
+            "MM: All tokens have been minted."
+        );
 
         // Mint the next available token to the sender.
-        _mint(_msgSender(), _nextAvailableToken);
+        _safeMint(_msgSender(), _nextAvailableToken);
 
-        // Advance
+        // Advance token iterator
         _nextAvailableToken = _nextAvailableToken + 1;
     }
+
+    function getAmountLeftToMint() public view returns (uint256) {}
 
     /**
      * @dev Advance `releasePhase` to the next pre-defined ReleasePhase.
@@ -119,11 +151,7 @@ contract MechaMonkeysCollection is ERC721 {
         address from,
         address to,
         uint256 tokenId
-    ) 
-        internal 
-        virtual
-        override(ERC721)
-    {
+    ) internal virtual override {
         // Disallow burning
         require(to != address(0), "MM: Token cannot be burned.");
 
@@ -141,5 +169,22 @@ contract MechaMonkeysCollection is ERC721 {
             releasePhase != ReleasePhase.WAITING,
             "MM: Transers and minting cannot occur yet."
         );
+    }
+
+    /**
+     * @dev Returns how much royalty is owed and to whom, based on a sale price that may be denominated in any unit of
+     * exchange. The royalty amount is denominated and should be paid in that same unit of exchange.
+     * NOTE: All `tokenId`s have the same royalty ratio.
+     */
+    function royaltyInfo(uint256 tokenId, uint256 salePrice)
+        external
+        view
+        override(IERC2981)
+        returns (address, uint256)
+    {
+        address receiver = transactionPayoutAddress;
+        uint256 royaltyAmount = salePrice / TRANSACTION_FEE_DENOMINATOR;
+
+        return (receiver, royaltyAmount);
     }
 }

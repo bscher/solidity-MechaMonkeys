@@ -1,5 +1,5 @@
 var MechaMonkeysCollection = artifacts.require("./MechaMonkeysCollection.sol");
 
 module.exports = function (deployer, _, accounts) {
-    deployer.deploy(MechaMonkeysCollection, accounts[1]);
+    deployer.deploy(MechaMonkeysCollection, accounts[1], accounts[2]);
 };
