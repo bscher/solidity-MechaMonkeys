@@ -33,8 +33,8 @@ contract MechaMonkeysCollection is ERC721, IERC2981 {
     uint256 public constant TRANSACTION_FEE_DENOMINATOR = 18; // 1/18 ~= 0.0555 ~= 5.55%
 
     // The three phases during the release. Each phase modifies `_baseURI` to return
-    //  the next phase of the release. Only the `_creator` can modify the release phase
-    //  and when `ReleasePhase.COMPLETED` is reached, `_creator` cannot modify the contract
+    //  the next phase of the release. Only the `contractOwner` can modify the release phase
+    //  and when `ReleasePhase.COMPLETED` is reached, `contractOwner` cannot modify the contract
     //  any further.
     enum ReleasePhase {
         WAITING,
