@@ -30,14 +30,17 @@ contract('MechaMonkeysCollection', (accounts) => {
 
     const PAYOUT_DENOMINATOR = 18;
 
+    const WAITINGPHASE_URI = "https://waiting/?id=";
+    const MYSTERYPHASE_URI = "https://mystery/?id=";
+    const PARTIALPHASE_URI = "https://partial/?id=";
+    const COMPLETEDPHASE_URI = "https://completed/?id=";
+
     before(async () => {
         this.collection = await MechaMonkeysCollection.new(ACCOUNT_PAYOUT, ACCOUNT_ARTIST);
         console.log(Object.keys(MechaMonkeysCollection));
     });
 
-    it('has ERC721 and IERC2981 info', async () => {
-
-        /// ERC721 ///
+    it('has expected public info', async () => {
 
         const contractOwner = await this.collection.contractOwner();
         console.log("contractOwner: " + contractOwner);
@@ -58,6 +61,17 @@ contract('MechaMonkeysCollection', (accounts) => {
         assert.equal(LAST_TOKEN, (await this.collection.TOKEN_LAST()).toNumber());
         assert.equal(ARTIST_TOKEN, (await this.collection.ARTIST_SPECIAL_TOKEN()).toNumber());
 
+
+        assert.equal(WAITINGPHASE_URI, (await this.collection.RELEASEPHASEURI_WAITING()));
+        assert.equal(MYSTERYPHASE_URI, (await this.collection.RELEASEPHASEURI_MYSTERY()));
+        assert.equal(PARTIALPHASE_URI, (await this.collection.RELEASEPHASEURI_PARTIAL()));
+        assert.equal(COMPLETEDPHASE_URI, (await this.collection.RELEASEPHASEURI_COMPLETED()));
+    });
+
+    it('has ERC721 and IERC2981 info', async () => {
+
+        /// ERC721 ///
+
         const collectionName = await this.collection.name();
         assert.equal(collectionName, "Mecha Monkeys");
         const collectionSymbol = await this.collection.symbol();
@@ -73,53 +87,50 @@ contract('MechaMonkeysCollection', (accounts) => {
         const royaltyInfo_receiver = royaltyInfo[0];
         const royaltyInfo_royaltyAmount = royaltyInfo[1].toNumber();
 
-        assert.equal(royaltyInfo_receiver, transactionPayoutAddress);
+        assert.equal(royaltyInfo_receiver, (await this.collection.transactionPayoutAddress()));
         assert.equal(royaltyInfo_royaltyAmount, exampleSalePrice / transactionFeeDenominator);
     });
 
     it('cannot mint during initial `WAITING` phase', async () => {
-        assert.equal(MechaMonkeysCollection.ReleasePhase.WAITING, (await this.collection.releasePhase()).toString());
+        assert.equal(MechaMonkeysCollection.ReleasePhase.WAITING, (await this.collection.currentReleasePhase()).toString());
         await assertPromiseFails(this.collection.mint());
     });
 
     it('has minted the artist NFT upon contract creation', async () => {
+        assert.equal(MechaMonkeysCollection.ReleasePhase.WAITING, (await this.collection.currentReleasePhase()).toString());
         assert.equal(ACCOUNT_ARTIST, await this.collection.ownerOf(ARTIST_TOKEN));
     });
 
     it('can advance through release phases', async () => {
         /// Initial waiting phase ///
-        const waitingPhase_uri = "https://mechamonkeys.io/index.html?tokenID=";
-        const waitingPhase = (await this.collection.releasePhase()).toString();
+        const waitingPhase = (await this.collection.currentReleasePhase()).toString();
         assert.equal(waitingPhase, MechaMonkeysCollection.ReleasePhase.WAITING.toString());
-        assert.equal(waitingPhase_uri, (await this.collection.currentBaseURI()));
+        assert.equal(WAITINGPHASE_URI + ARTIST_TOKEN, (await this.collection.tokenURI(ARTIST_TOKEN)));
 
         /// Mystery phase ///
-        const mysteryPhase_uri = "https://mystery/";
-        await this.collection.nextReleasePhase(mysteryPhase_uri);
-        const mysteryPhase = (await this.collection.releasePhase()).toString();
+        await this.collection.nextReleasePhase();
+        const mysteryPhase = (await this.collection.currentReleasePhase()).toString();
         assert.equal(mysteryPhase, MechaMonkeysCollection.ReleasePhase.MYSTERY.toString());
-        assert.equal(mysteryPhase_uri, (await this.collection.currentBaseURI()));
+        assert.equal(MYSTERYPHASE_URI + ARTIST_TOKEN, (await this.collection.tokenURI(ARTIST_TOKEN)));
 
         /// Partial reveal phase ///
-        const partialPhase_uri = "https://partial/";
-        await this.collection.nextReleasePhase(partialPhase_uri);
-        const partialPhase = (await this.collection.releasePhase()).toString();
+        await this.collection.nextReleasePhase();
+        const partialPhase = (await this.collection.currentReleasePhase()).toString();
         assert.equal(partialPhase, MechaMonkeysCollection.ReleasePhase.PARTIAL.toString());
-        assert.equal(partialPhase_uri, (await this.collection.currentBaseURI()));
+        assert.equal(PARTIALPHASE_URI + ARTIST_TOKEN, (await this.collection.tokenURI(ARTIST_TOKEN)));
 
         /// Completed reveal phase ///
-        const completedPhase_uri = "https://completed/";
-        await this.collection.nextReleasePhase(completedPhase_uri);
-        const completedPhase = (await this.collection.releasePhase()).toString();
+        await this.collection.nextReleasePhase();
+        const completedPhase = (await this.collection.currentReleasePhase()).toString();
         assert.equal(completedPhase, MechaMonkeysCollection.ReleasePhase.COMPLETED.toString());
-        assert.equal(completedPhase_uri, (await this.collection.currentBaseURI()));
+        assert.equal(COMPLETEDPHASE_URI + ARTIST_TOKEN, (await this.collection.tokenURI(ARTIST_TOKEN)));
 
         // Should not be able to progress to next phase
-        await assertPromiseFails(this.collection.nextReleasePhase("https://should-fail/"));
+        await assertPromiseFails(this.collection.nextReleasePhase());
     });
 
     it('can mint a token', async () => {
-        const currentPhase = (await this.collection.releasePhase()).toString();
+        const currentPhase = (await this.collection.currentReleasePhase()).toString();
         assert.equal(currentPhase, MechaMonkeysCollection.ReleasePhase.COMPLETED);
 
         let initialAmountLeftToMint = (await this.collection.getAmountLeftToMint()).toNumber();
@@ -131,16 +142,25 @@ contract('MechaMonkeysCollection', (accounts) => {
         assert.equal(9998, afterAmountLeftToMint);
         assert.equal(1, (await this.collection.balanceOf(ACCOUNT_OWNER)).toNumber());
 
-        let ownerOfIdOne = await this.collection.ownerOf(1);
-        console.log(ownerOfIdOne);
-
-        console.log(await this.collection.tokenURI(1));
+        assert.equal(ACCOUNT_OWNER, await this.collection.ownerOf(1));
     });
 
     it('same address cannot mint twice', async () => {
-        const currentPhase = (await this.collection.releasePhase()).toString();
+        const currentPhase = (await this.collection.currentReleasePhase()).toString();
         assert.equal(currentPhase, MechaMonkeysCollection.ReleasePhase.COMPLETED);
 
         await assertPromiseFails(this.collection.mint());
+    });
+
+    it('owner can transfer token to another user', async () => {
+        const currentPhase = (await this.collection.currentReleasePhase()).toString();
+        assert.equal(currentPhase, MechaMonkeysCollection.ReleasePhase.COMPLETED);
+
+        assert.equal(accounts[0], (await this.collection.ownerOf(1)));
+
+        // Transfer token 1 from ACCOUNT_OWNER to account[1]
+        await this.collection.safeTransferFrom(ACCOUNT_OWNER, accounts[1], 1);
+
+        assert.equal(accounts[1], (await this.collection.ownerOf(1)));
     });
 });

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+// Written by https://twitter.com/dev_mecha
+pragma solidity 0.8.15;
 
 // NFT collection
 import "../openzeppelin-contracts/contracts/token/ERC721/ERC721.sol";
@@ -11,7 +12,7 @@ import "../openzeppelin-contracts/contracts/interfaces/IERC2981.sol";
 contract MechaMonkeysCollection is ERC721, IERC2981 {
     // Owner of the contract with the ability to advance the `ReleasePhase`.
     // NOTE: When the owner advances the `ReleasePhase` to `ReleasePhase.COMPLETED`,
-    //        the owner will NOT HAVE ANY FURTHER ABILITIES OVER THE CONTRACT.
+    //        the owner will not have any further ability to modify the release phase.
     address public contractOwner;
 
     // Address to send the trade commission payouts.
@@ -32,21 +33,22 @@ contract MechaMonkeysCollection is ERC721, IERC2981 {
     // Fee denominator to determine the fraction of a transaction to use for payout.
     uint256 public constant TRANSACTION_FEE_DENOMINATOR = 18; // 1/18 ~= 0.0555 ~= 5.55%
 
-    // The three phases during the release. Each phase modifies `_baseURI` to return
-    //  the next phase of the release. Only the `contractOwner` can modify the release phase
-    //  and when `ReleasePhase.COMPLETED` is reached, `contractOwner` cannot modify the contract
-    //  any further.
+    // The three phases during the release. Each phase changes what `_baseURI` returns, but each
+    //  phase's URI is defined at construction of the contract. The `contractOwner` can trigger an advance
+    //  to the next release phase but not the URI itself.
+    //  NOTE: When `ReleasePhase.COMPLETED` is reached, `contractOwner` will no longer have any ability to
+    //         modify the release phase.
     enum ReleasePhase {
         WAITING,
         MYSTERY,
         PARTIAL,
         COMPLETED
     }
-    ReleasePhase public releasePhase;
-
-    // The URI for the current `releasePhase`.
-    // NOTE: After `ReleasePhase.COMPLETED`, `currentBaseURI` cannot be modified.
-    string public currentBaseURI;
+    ReleasePhase public currentReleasePhase;
+    string public constant RELEASEPHASEURI_WAITING = "https://waiting/?id=";
+    string public constant RELEASEPHASEURI_MYSTERY = "https://mystery/?id=";
+    string public constant RELEASEPHASEURI_PARTIAL = "https://partial/?id=";
+    string public constant RELEASEPHASEURI_COMPLETED = "https://completed/?id=";
 
     constructor(
         address payable transactionPayoutAddress_,
@@ -56,10 +58,8 @@ contract MechaMonkeysCollection is ERC721, IERC2981 {
         transactionPayoutAddress = transactionPayoutAddress_;
         artistAddress = artistAddress_;
 
-        // Initial release phase is `ReleasePhase.WAITING`
-        releasePhase = ReleasePhase.WAITING;
-        // Later phases will use IPFS
-        currentBaseURI = "https://mechamonkeys.io/index.html?tokenID=";
+        // Start in release phase `ReleasePhase.WAITING`
+        currentReleasePhase = ReleasePhase.WAITING;
 
         // Mint artist's special symbolic token (not part of official collection).
         _mint(artistAddress, ARTIST_SPECIAL_TOKEN);
@@ -134,35 +134,35 @@ contract MechaMonkeysCollection is ERC721, IERC2981 {
     }
 
     /**
-     * @dev Advance `releasePhase` to the next pre-defined ReleasePhase.
+     * @dev Advance `currentReleasePhase` to the next pre-defined ReleasePhase.
      *       Only callable by the owner and when `ReleasePhase.COMPLETED` is reached,
      *       no further modifications to the release are allowed.
      */
-    function nextReleasePhase(string memory newBaseURI_) public {
+    function nextReleasePhase() public {
         // Only callable by `_owner`
         require(_msgSender() == contractOwner);
         // Can only be called if not in `ReleasePhase.COMPLETED`
-        require(releasePhase != ReleasePhase.COMPLETED);
+        require(currentReleasePhase != ReleasePhase.COMPLETED);
 
         // WAITING -> MYSTERY
-        if (releasePhase == ReleasePhase.WAITING) {
-            releasePhase = ReleasePhase.MYSTERY;
+        if (currentReleasePhase == ReleasePhase.WAITING) {
+            currentReleasePhase = ReleasePhase.MYSTERY;
         }
         // MYSTERY -> PARTIAL
-        else if (releasePhase == ReleasePhase.MYSTERY) {
-            releasePhase = ReleasePhase.PARTIAL;
+        else if (currentReleasePhase == ReleasePhase.MYSTERY) {
+            currentReleasePhase = ReleasePhase.PARTIAL;
         }
         // PARTIAL -> COMPLETED
-        else if (releasePhase == ReleasePhase.PARTIAL) {
-            releasePhase = ReleasePhase.COMPLETED;
+        else if (currentReleasePhase == ReleasePhase.PARTIAL) {
+            currentReleasePhase = ReleasePhase.COMPLETED;
+        } else {
+            assert(false); // This line should never be reached.
         }
-
-        currentBaseURI = newBaseURI_;
     }
 
     /**
-     * @dev Base URI for computing {tokenURI}. Can change based on `releasePhase`/`currentBaseURI`,
-     *       but only until `releasePhase` reaches `COMPLETED`, which then the baseURI is finalized.
+     * @dev Base URI for computing {tokenURI}. Can change based on `currentReleasePhase`/`currentBaseURI`,
+     *       but only until `currentReleasePhase` reaches `COMPLETED`, which then the baseURI is finalized.
      */
     function _baseURI()
         internal
@@ -171,11 +171,21 @@ contract MechaMonkeysCollection is ERC721, IERC2981 {
         override(ERC721)
         returns (string memory)
     {
-        return currentBaseURI;
+        if (currentReleasePhase == ReleasePhase.WAITING) {
+            return RELEASEPHASEURI_WAITING;
+        } else if (currentReleasePhase == ReleasePhase.MYSTERY) {
+            return RELEASEPHASEURI_MYSTERY;
+        } else if (currentReleasePhase == ReleasePhase.PARTIAL) {
+            return RELEASEPHASEURI_PARTIAL;
+        }
+        // else if (currentReleasePhase == ReleasePhase.COMPLETED)
+        return RELEASEPHASEURI_COMPLETED;
     }
 
     /**
-     * @dev Disallow burning of tokens.
+     * @dev Interject before transfer to disallow burning of tokens, only allow
+     *       minting of tokens after `ReleasePhase.WAITING`, and allow special permission
+     *       for artist to mint a special token meant just for the artist (not part of official collection).
      */
     function _beforeTokenTransfer(
         address from_,
@@ -189,21 +199,21 @@ contract MechaMonkeysCollection is ERC721, IERC2981 {
         if (
             _msgSender() == contractOwner &&
             tokenId_ == ARTIST_SPECIAL_TOKEN &&
-            releasePhase == ReleasePhase.WAITING
+            currentReleasePhase == ReleasePhase.WAITING
         ) {
             return; //OK
         }
 
         // Can only transfer tokens after minting has started.
         require(
-            releasePhase != ReleasePhase.WAITING,
+            currentReleasePhase != ReleasePhase.WAITING,
             "MM: Transfers and minting cannot occur yet."
         );
     }
 
     /**
      * @dev Disallow token burning.
-     * NOTE: This function is never called, but disabled just in case and to be verbose.
+     * NOTE: This function is never called, but disable just in case, and to be verbose.
      */
     function _burn(uint256 tokenId_) internal virtual override {
         require(false, "MM: Token cannot be burned.");
