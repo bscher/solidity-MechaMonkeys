@@ -36,7 +36,14 @@ contract('MechaMonkeysCollection', (accounts) => {
     const COMPLETEDPHASE_URI = "https://completed/?id=";
 
     before(async () => {
-        this.collection = await MechaMonkeysCollection.new(ACCOUNT_PAYOUT, ACCOUNT_ARTIST);
+        this.collection = await MechaMonkeysCollection.new(
+            ACCOUNT_PAYOUT,
+            ACCOUNT_ARTIST,
+            WAITINGPHASE_URI,
+            MYSTERYPHASE_URI,
+            PARTIALPHASE_URI,
+            COMPLETEDPHASE_URI
+        );
         console.log(Object.keys(MechaMonkeysCollection));
     });
 
@@ -62,10 +69,10 @@ contract('MechaMonkeysCollection', (accounts) => {
         assert.equal(ARTIST_TOKEN, (await this.collection.ARTIST_SPECIAL_TOKEN()).toNumber());
 
 
-        assert.equal(WAITINGPHASE_URI, (await this.collection.RELEASEPHASEURI_WAITING()));
-        assert.equal(MYSTERYPHASE_URI, (await this.collection.RELEASEPHASEURI_MYSTERY()));
-        assert.equal(PARTIALPHASE_URI, (await this.collection.RELEASEPHASEURI_PARTIAL()));
-        assert.equal(COMPLETEDPHASE_URI, (await this.collection.RELEASEPHASEURI_COMPLETED()));
+        assert.equal(WAITINGPHASE_URI, (await this.collection.releasePhaseURI_waiting()));
+        assert.equal(MYSTERYPHASE_URI, (await this.collection.releasePhaseURI_mystery()));
+        assert.equal(PARTIALPHASE_URI, (await this.collection.releasePhaseURI_partial()));
+        assert.equal(COMPLETEDPHASE_URI, (await this.collection.releasePhaseURI_completed()));
     });
 
     it('has ERC721 and IERC2981 info', async () => {
@@ -161,6 +168,20 @@ contract('MechaMonkeysCollection', (accounts) => {
         // Transfer token 1 from ACCOUNT_OWNER to account[1]
         await this.collection.safeTransferFrom(ACCOUNT_OWNER, accounts[1], 1);
 
+        assert.equal(accounts[1], (await this.collection.ownerOf(1)));
+    });
+
+    it('non-owner cannot transfer token to another user', async () => {
+        const currentPhase = (await this.collection.currentReleasePhase()).toString();
+        assert.equal(currentPhase, MechaMonkeysCollection.ReleasePhase.COMPLETED);
+
+        // account[1] owns id:1
+        assert.equal(accounts[1], (await this.collection.ownerOf(1)));
+
+        // Attempt to transfer token 1 even though accounts[0] does not own it
+        await assertPromiseFails(this.collection.safeTransferFrom(ACCOUNT_OWNER, accounts[1], 1));
+
+        // account[1] still owns id:1
         assert.equal(accounts[1], (await this.collection.ownerOf(1)));
     });
 });

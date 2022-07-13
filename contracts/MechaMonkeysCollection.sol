@@ -45,14 +45,18 @@ contract MechaMonkeysCollection is ERC721, IERC2981 {
         COMPLETED
     }
     ReleasePhase public currentReleasePhase;
-    string public constant RELEASEPHASEURI_WAITING = "https://waiting/?id=";
-    string public constant RELEASEPHASEURI_MYSTERY = "https://mystery/?id=";
-    string public constant RELEASEPHASEURI_PARTIAL = "https://partial/?id=";
-    string public constant RELEASEPHASEURI_COMPLETED = "https://completed/?id=";
+    string public releasePhaseURI_waiting;
+    string public releasePhaseURI_mystery;
+    string public releasePhaseURI_partial;
+    string public releasePhaseURI_completed;
 
     constructor(
         address payable transactionPayoutAddress_,
-        address artistAddress_
+        address artistAddress_,
+        string memory releasePhaseURI_waiting_,
+        string memory releasePhaseURI_mystery_,
+        string memory releasePhaseURI_partial_,
+        string memory releasePhaseURI_completed_
     ) ERC721("Mecha Monkeys", "MECHA") {
         contractOwner = _msgSender();
         transactionPayoutAddress = transactionPayoutAddress_;
@@ -60,6 +64,10 @@ contract MechaMonkeysCollection is ERC721, IERC2981 {
 
         // Start in release phase `ReleasePhase.WAITING`
         currentReleasePhase = ReleasePhase.WAITING;
+        releasePhaseURI_waiting = releasePhaseURI_waiting_;
+        releasePhaseURI_mystery = releasePhaseURI_mystery_;
+        releasePhaseURI_partial = releasePhaseURI_partial_;
+        releasePhaseURI_completed = releasePhaseURI_completed_;
 
         // Mint artist's special symbolic token (not part of official collection).
         _mint(artistAddress, ARTIST_SPECIAL_TOKEN);
@@ -172,14 +180,14 @@ contract MechaMonkeysCollection is ERC721, IERC2981 {
         returns (string memory)
     {
         if (currentReleasePhase == ReleasePhase.WAITING) {
-            return RELEASEPHASEURI_WAITING;
+            return releasePhaseURI_waiting;
         } else if (currentReleasePhase == ReleasePhase.MYSTERY) {
-            return RELEASEPHASEURI_MYSTERY;
+            return releasePhaseURI_mystery;
         } else if (currentReleasePhase == ReleasePhase.PARTIAL) {
-            return RELEASEPHASEURI_PARTIAL;
+            return releasePhaseURI_partial;
         }
         // else if (currentReleasePhase == ReleasePhase.COMPLETED)
-        return RELEASEPHASEURI_COMPLETED;
+        return releasePhaseURI_completed;
     }
 
     /**
