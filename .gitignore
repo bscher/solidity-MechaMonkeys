@@ -144,3 +144,7 @@ dist
 # Windows
 
 *.ini
+
+# Truffle
+
+flatten/

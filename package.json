@@ -7,6 +7,7 @@
         "test": "test"
     },
     "scripts": {
+        "flatten": "truffle run flatten ./contracts/MechaMonkeysCollection.sol",
         "deploy": "truffle migrate --reset",
         "test": "truffle test"
     },
@@ -18,6 +19,7 @@
         "chai-bignumber": "^2.0.2",
         "nodemon": "^1.17.3",
         "truffle": "5.0.2",
-        "truffle-contract": "3.0.6"
+        "truffle-contract": "3.0.6",
+        "truffle-flatten": "^1.0.8"
     }
 }
