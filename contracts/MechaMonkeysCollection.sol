@@ -1,15 +1,18 @@
 // SPDX-License-Identifier: MIT
-// Written by https://twitter.com/dev_mecha
+// Developed by: https://twitter.com/dev_mecha
+// Primary Twitter: https://
+// Website: https://mechamonkeys.io/
 pragma solidity 0.8.15;
 
 // NFT collection
 import "../openzeppelin-contracts/contracts/token/ERC721/ERC721.sol";
+import "../openzeppelin-contracts/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 // NFT metadata
 import "../openzeppelin-contracts/contracts/token/ERC721/extensions/IERC721Metadata.sol";
 // Marketplace standard royalties
 import "../openzeppelin-contracts/contracts/interfaces/IERC2981.sol";
 
-contract MechaMonkeysCollection is ERC721, IERC2981 {
+contract MechaMonkeysCollection is ERC721Enumerable, IERC2981 {
     // Owner of the contract with the ability to advance the `ReleasePhase`.
     // NOTE: When the owner advances the `ReleasePhase` to `ReleasePhase.COMPLETED`,
     //        the owner will not have any further ability to modify the release phase.
@@ -99,10 +102,11 @@ contract MechaMonkeysCollection is ERC721, IERC2981 {
         public
         view
         virtual
-        override(ERC721, IERC165)
+        override(ERC721Enumerable, IERC165)
         returns (bool)
     {
         return
+            interfaceId_ == type(IERC721Enumerable).interfaceId ||
             interfaceId_ == type(IERC2981).interfaceId ||
             super.supportsInterface(interfaceId_);
     }
@@ -190,6 +194,15 @@ contract MechaMonkeysCollection is ERC721, IERC2981 {
         return releasePhaseURI_completed;
     }
 
+    function tokenURI(uint256 tokenId)
+        public
+        view
+        override(ERC721)
+        returns (string memory)
+    {
+        return string.concat(super.tokenURI(tokenId), ".json");
+    }
+
     /**
      * @dev Interject before transfer to disallow burning of tokens, only allow
      *       minting of tokens after `ReleasePhase.WAITING`, and allow special permission
@@ -199,7 +212,9 @@ contract MechaMonkeysCollection is ERC721, IERC2981 {
         address from_,
         address to_,
         uint256 tokenId_
-    ) internal view virtual override {
+    ) internal virtual override(ERC721Enumerable) {
+        super._beforeTokenTransfer(from_, to_, tokenId_);
+
         // Disallow burning
         require(to_ != address(0), "MM: Token cannot be burned.");
 

@@ -30,10 +30,12 @@ contract('MechaMonkeysCollection', (accounts) => {
 
     const PAYOUT_DENOMINATOR = 18;
 
-    const WAITINGPHASE_URI = "https://waiting/?id=";
-    const MYSTERYPHASE_URI = "https://mystery/?id=";
-    const PARTIALPHASE_URI = "https://partial/?id=";
-    const COMPLETEDPHASE_URI = "https://completed/?id=";
+    const WAITINGPHASE_URI = "ipfs://QmWPLaoXpVVcbVi38GvweFekaoqz6cNXjvVuxV8jH6ftsM/";
+    const MYSTERYPHASE_URI = "ipfs://QmWPLaoXpVVcbVi38GvweFekaoqz6cNXjvVuxV8jH6ftsM/";
+    const PARTIALPHASE_URI = "ipfs://Qmf3D1Mw8i7fg83zfHSBcMEYAJZ6kVrbHmQujxom4JTVYb/";
+    const COMPLETEDPHASE_URI = "ipfs://Qmf9sC4cWYUo684b2MMVWuoHhUdYDWVt9SSgc7yFFxx2AN/";
+
+    const URI_POSTFIX = ".json"
 
     before(async () => {
         this.collection = await MechaMonkeysCollection.new(
@@ -112,25 +114,25 @@ contract('MechaMonkeysCollection', (accounts) => {
         /// Initial waiting phase ///
         const waitingPhase = (await this.collection.currentReleasePhase()).toString();
         assert.equal(waitingPhase, MechaMonkeysCollection.ReleasePhase.WAITING.toString());
-        assert.equal(WAITINGPHASE_URI + ARTIST_TOKEN, (await this.collection.tokenURI(ARTIST_TOKEN)));
+        assert.equal(WAITINGPHASE_URI + ARTIST_TOKEN + URI_POSTFIX, (await this.collection.tokenURI(ARTIST_TOKEN)));
 
         /// Mystery phase ///
         await this.collection.nextReleasePhase();
         const mysteryPhase = (await this.collection.currentReleasePhase()).toString();
         assert.equal(mysteryPhase, MechaMonkeysCollection.ReleasePhase.MYSTERY.toString());
-        assert.equal(MYSTERYPHASE_URI + ARTIST_TOKEN, (await this.collection.tokenURI(ARTIST_TOKEN)));
+        assert.equal(MYSTERYPHASE_URI + ARTIST_TOKEN + URI_POSTFIX, (await this.collection.tokenURI(ARTIST_TOKEN)));
 
         /// Partial reveal phase ///
         await this.collection.nextReleasePhase();
         const partialPhase = (await this.collection.currentReleasePhase()).toString();
         assert.equal(partialPhase, MechaMonkeysCollection.ReleasePhase.PARTIAL.toString());
-        assert.equal(PARTIALPHASE_URI + ARTIST_TOKEN, (await this.collection.tokenURI(ARTIST_TOKEN)));
+        assert.equal(PARTIALPHASE_URI + ARTIST_TOKEN + URI_POSTFIX, (await this.collection.tokenURI(ARTIST_TOKEN)));
 
         /// Completed reveal phase ///
         await this.collection.nextReleasePhase();
         const completedPhase = (await this.collection.currentReleasePhase()).toString();
         assert.equal(completedPhase, MechaMonkeysCollection.ReleasePhase.COMPLETED.toString());
-        assert.equal(COMPLETEDPHASE_URI + ARTIST_TOKEN, (await this.collection.tokenURI(ARTIST_TOKEN)));
+        assert.equal(COMPLETEDPHASE_URI + ARTIST_TOKEN + URI_POSTFIX, (await this.collection.tokenURI(ARTIST_TOKEN)));
 
         // Should not be able to progress to next phase
         await assertPromiseFails(this.collection.nextReleasePhase());
@@ -142,8 +144,14 @@ contract('MechaMonkeysCollection', (accounts) => {
 
         let initialAmountLeftToMint = (await this.collection.getAmountLeftToMint()).toNumber();
         assert.equal(9999, initialAmountLeftToMint);
+        let totalSupply = (await this.collection.totalSupply()).toNumber();
+        assert.equal(1, totalSupply);
 
         await this.collection.mint();
+
+        // Two have been minted. The artist's and the above.
+        let newTotalSupply = (await this.collection.totalSupply()).toNumber();
+        assert.equal(2, newTotalSupply);
 
         let afterAmountLeftToMint = (await this.collection.getAmountLeftToMint()).toNumber();
         assert.equal(9998, afterAmountLeftToMint);
